@@ -1,0 +1,116 @@
+﻿@page "/DaysOfTheYear"
+
+@using Syncfusion.Blazor.DropDowns
+@using System.Globalization
+@rendermode InteractiveServer
+@inject IHttpClientFactory ClientFactory
+
+<div style="width:20%">
+    <SfComboBox @bind-Value="@countryCode" TValue="string" TItem="Country" Placeholder="Select a country" DataSource="@countryData">
+        <ComboBoxEvents TItem="Country" TValue="string" ValueChange="@(async() =>await RefreshRecords())"></ComboBoxEvents>
+        <ComboBoxFieldSettings Value="CountryCode" Text="Name"></ComboBoxFieldSettings>
+    </SfComboBox>
+    <SfComboBox @bind-Value="@currentYear" TValue="int" TItem="int" Placeholder="Select a country" DataSource="@yearsData">
+        <ComboBoxEvents TItem="int" TValue="int" ValueChange="@(async() =>await RefreshRecords())"></ComboBoxEvents>
+        <ComboBoxFieldSettings Value="number" Text="int"></ComboBoxFieldSettings>
+    </SfComboBox>
+</div>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Number of Day</th>
+            <th>Day of week</th>
+            <th>Month</th>
+            <th>Day Of Year</th>
+            <th>Year</th>
+            <th>LocalName</th>
+            <th>Name</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (countryCode == "ru")
+        {
+            @foreach (var date in datesData)
+            {
+                <tr>
+                    <td>@date.Date.Day</td>
+                    <td>@DateTimeFormatInfo.CurrentInfo.GetDayName(date.Date.DayOfWeek)</td>
+                    <td>@DateTimeFormatInfo.CurrentInfo.GetMonthName(date.Date.Month)</td>
+                    <td>@date.Date.DayOfYear</td>
+                    <td>@date.Date.Year</td>
+                    <td>@date.PublicHoliday?.LocalName</td>
+                    <td>@date.PublicHoliday?.Name</td>
+                </tr>
+            }
+        }
+        else
+        {
+            @foreach (var date in datesData)
+            {
+                <tr>
+                    <td>@date.Date.Day</td>
+                    <td>@date.Date.DayOfWeek</td>
+                    <td>@DateTimeFormatInfo.InvariantInfo.GetMonthName(date.Date.Month)</td>
+                    <td>@date.Date.DayOfYear</td>
+                    <td>@date.Date.Year</td>
+                    <td>@date.PublicHoliday?.LocalName</td>
+                    <td>@date.PublicHoliday?.Name</td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@code {
+    public string countryCode = "ru";
+    List<Country> countryData = new List<Country>
+    {
+        new Country{ Name= "Россия", CountryCode = "ru"},
+        new Country{ Name= "United States", CountryCode = "us"},
+        new Country{ Name= "Albania", CountryCode = "al"},
+        new Country{ Name= "China", CountryCode = "cn"}
+    };
+    int currentYear = 2024;
+    int[] yearsData = { 2024, 2023, 2022, 2021, 2020 };
+    List<PublicHoliday> publicHoliday = new();
+    List<BlazorTask.DaysOfYear> datesData = new();
+    HttpClient httpClient = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshRecords();
+    }
+
+    async Task LoadPublicHolidaysData()
+    {
+        publicHoliday = await httpClient.GetFromJsonAsync<List<PublicHoliday>>(httpClient.BaseAddress) ?? publicHoliday;
+
+        foreach (var date in datesData)
+        {
+            date.PublicHoliday = publicHoliday.FirstOrDefault(x => DateTime.Parse(x.Date).Equals(date.Date));
+        }
+    }
+
+    void GetDaysOfYear(int year)
+    {
+        datesData.Clear();
+        DateTime startDay = new DateTime(year, 1, 1);
+        DateTime endDay = startDay.AddYears(1);
+        for (DateTime date = startDay; date != endDay; date = date.AddDays(1))
+            datesData.Add(new BlazorTask.DaysOfYear
+                {
+                    Date = date
+                });
+    }
+
+    public async Task RefreshRecords()
+    {
+        string startAddresUri = "https://date.nager.at/api/v3/PublicHolidays/";
+        string endAddresUri = $"{currentYear}/{countryCode}";         
+        httpClient = ClientFactory.CreateClient();
+        httpClient.BaseAddress = new Uri(startAddresUri + endAddresUri);
+        GetDaysOfYear(currentYear);        
+        await LoadPublicHolidaysData();
+    }
+
+}
